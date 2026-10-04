@@ -1,0 +1,14 @@
+# dsh brain-hands overlay: the main agent keeps its own model (the "brain"),
+# every `subagent` delegation runs on this stack (the "hands") - the pattern
+# that saves the expensive frontier-model output tokens.
+# Requires the provider block from dsh-remote-overlay.yml (merge both files
+# or paste this entry into it).
+- id: tool-subagent
+  name: "@deepseek-ai/dsh-tool-subagent"
+  config:
+    provider: spawn
+    toolName: subagent
+    backgroundMode: continuable
+    agentOptions:
+      provider: remote-stack
+      model: qwen38-27b-unc

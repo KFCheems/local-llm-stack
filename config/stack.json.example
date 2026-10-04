@@ -1,0 +1,36 @@
+{
+  "_comment": "Copy to config/stack.json and edit. One file drives the shim, the gatekeepers and the manager.",
+  "auth_token": "change-me-bearer-token",
+  "manager_token": "change-me-panel-token",
+  "shim": {
+    "port": 8088,
+    "bind": "0.0.0.0"
+  },
+  "manager": {
+    "port": 9090,
+    "bind": "0.0.0.0"
+  },
+  "upstreams": {
+    "default_model": "qwen38-27b-unc",
+    "models": {
+      "orcasaq-27b": "slot1",
+      "qwen38-27b-unc": "slot2"
+    }
+  },
+  "slots": [
+    {
+      "name": "slot1",
+      "gate_port": 8090,
+      "engine_port": 8091,
+      "start_bat": "launchers/start_slot1.bat",
+      "exclusive_with": ["slot2"]
+    },
+    {
+      "name": "slot2",
+      "gate_port": 8092,
+      "engine_port": 8093,
+      "start_bat": "launchers/start_slot2.bat",
+      "exclusive_with": ["slot1"]
+    }
+  ]
+}

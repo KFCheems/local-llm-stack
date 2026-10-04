@@ -1,0 +1,12 @@
+# runtime state & secrets - never commit
+logs/
+config/stack.json
+*.json.bak
+*_token*.txt
+*auth*.txt
+hf_token.txt
+models/
+*.gguf
+*.gguf.part*
+__pycache__/
+*.pyc

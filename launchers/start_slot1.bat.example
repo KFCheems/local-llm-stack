@@ -1,0 +1,26 @@
+@echo off
+REM ============================================================
+REM  Full-power model slot 1 launcher - EDIT THIS for your model.
+REM  The gatekeeper runs this to start llama-server on demand;
+REM  it treats process exit as engine-down.
+REM  Choose -c (context) with the VRAM math in docs/benchmarks.md:
+REM    weights GB + ~1.8GB runtime + ctx * KV-per-token must fit
+REM    your card.  q4_0 KV ~= 19.5KB/token, q8_0 ~= 36KB/token on
+REM    Qwen3.8-27B-class dense models; watch for the speed cliff.
+REM  (ASCII-only comments: cmd misparses UTF-8 Chinese in .bat files)
+REM ============================================================
+cd /d C:\LLM\llama
+
+llama-server.exe ^
+  -m C:\LLM\models\YOUR-MODEL.gguf ^
+  -ngl 99 ^
+  -c 163840 ^
+  -ctk q4_0 -ctv q4_0 ^
+  -fa on ^
+  --cache-reuse 256 ^
+  -t 8 ^
+  -b 2048 -ub 512 ^
+  --host 127.0.0.1 ^
+  --port 8091
+
+REM no pause: the gatekeeper treats exit as engine-down

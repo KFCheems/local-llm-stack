@@ -1,0 +1,32 @@
+# Remote access overlay for DeepSeek Harness (dsh): register the stack as a
+# provider speaking the OpenAI Responses protocol through a Cloudflare-Access-
+# protected hostname.  Copy, fill the two CF-Access values (Zero Trust ->
+# Access -> Service Tokens) and use with:
+#   dsh --profile <profile> --patch dsh-remote-overlay.yml "task..."
+# For LAN-only use drop the CF-Access headers and point baseURL at the LAN IP.
+- id: llm-pi-ai
+  name: "@deepseek-ai/dsh-llm-pi-ai"
+  config:
+    providers:
+      remote-stack:
+        api: openai-responses
+        baseURL: https://api.your-domain.com/v1
+        headers:
+          Authorization: Bearer change-me-bearer-token
+          CF-Access-Client-Id: "${CF_ACCESS_CLIENT_ID}"
+          CF-Access-Client-Secret: "${CF_ACCESS_CLIENT_SECRET}"
+        models:
+          - id: qwen38-27b-unc
+            name: Local 27B (hands)
+            contextWindow: 163840
+            maxTokens: 8192
+            input:
+              - text
+
+# Optional: force the default model onto the remote stack.
+# - id: agent-default-model
+#   name: "@deepseek-ai/dsh-agent-default-model"
+#   config:
+#     provider: remote-stack
+#     model: qwen38-27b-unc
+#     reasoningEffort: medium

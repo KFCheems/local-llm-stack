@@ -1,0 +1,29 @@
+{
+  "_comment": "Template for pi-coding-agent ~/.pi/agent/models.json - merge the provider block in.",
+  "providers": {
+    "local-stack": {
+      "name": "Local LLM stack",
+      "baseUrl": "http://127.0.0.1:8088/v1",
+      "api": "openai-responses",
+      "apiKey": "any-string (the shim checks bearer only from non-localhost IPs)",
+      "models": [
+        {
+          "id": "qwen38-27b-unc",
+          "name": "Local 27B (default hands)",
+          "reasoning": false,
+          "input": ["text"],
+          "contextWindow": 163840,
+          "maxTokens": 8192
+        },
+        {
+          "id": "orcasaq-27b",
+          "name": "Local 27B (alternate slot)",
+          "reasoning": false,
+          "input": ["text"],
+          "contextWindow": 163840,
+          "maxTokens": 8192
+        }
+      ]
+    }
+  }
+}
