@@ -17,6 +17,7 @@ Stdlib only; http.client never touches the system proxy.
 import http.client
 import json
 import os
+import socket
 import socketserver
 import threading
 import time
@@ -262,6 +263,14 @@ def sse_lines(resp):
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+
+    def setup(self):
+        super().setup()
+        try:
+            # SSE deltas are token-sized writes; Nagle would delay/coalesce them
+            self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except OSError:
+            pass
 
     def log_message(self, fmt, *args):
         pass

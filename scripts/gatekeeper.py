@@ -164,6 +164,7 @@ PLACEHOLDER = ("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n"
 
 def connect_engine(port, timeout=10):
     s = socket.create_connection(("127.0.0.1", port), timeout=timeout)
+    s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)   # token-sized relays
     s.setblocking(False)
     return s
 
@@ -333,6 +334,10 @@ def main():
             log(name, f"accept error (continuing): {e!r}")
             time.sleep(0.5)
             continue
+        try:
+            client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except OSError:
+            pass
         client.setblocking(True)
         threading.Thread(target=pipe,
                          args=(client, name, slot, heartbeat, idle_stop, auth_token),

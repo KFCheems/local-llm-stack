@@ -9,10 +9,14 @@ param(
     [int]$MaxRounds = 12
 )
 $ErrorActionPreference = "Continue"
-if ($AuthFile -and (Test-Path $AuthFile)) { $tok = (Get-Content $AuthFile -Raw).Trim() } else { $tok = "" }
-$auth = "Authorization: Bearer $tok"
+$auth = ""
+$curl_args = @('--noproxy', '*', '-sIL', '-m', '120')
+if ($AuthFile -and (Test-Path $AuthFile)) {
+    $tok = (Get-Content $AuthFile -Raw).Trim()
+    if ($tok) { $auth = "Authorization: Bearer $tok"; $curl_args += @('-H', $auth) }
+}
 
-$head = & curl.exe --noproxy '*' -sIL -m 120 -H $auth $Url
+$head = & curl.exe @curl_args $Url
 $total = [int64](($head | Select-String -Pattern '(?i)^content-length:\s*(\d+)' -AllMatches |
     ForEach-Object { $_.Matches[0].Groups[1].Value } | Select-Object -Last 1))
 if ($total -le 0) { Write-Host "HEAD_FAILED"; exit 1 }
@@ -35,11 +39,14 @@ for ($round = 1; $round -le $MaxRounds; $round++) {
             continue
         }
         $from = $start + $have
+        $job_args = @('-sL', '--speed-time', '30', '--speed-limit', '200000', '-m', '3600',
+                      '-r', "$from-$end")
+        if ($auth) { $job_args += @('-H', $auth) }
         $jobs += Start-Job -ScriptBlock {
             param($u, $a, $from2, $end2, $p2, $expect2)
             $tmp = "$p2.tmp"
             Remove-Item $tmp -Force -ErrorAction SilentlyContinue
-            & curl.exe --noproxy '*' -sL --speed-time 30 --speed-limit 200000 -m 3600 -r "$from2-$end2" -H $a -o $tmp $u
+            & curl.exe --noproxy '*' @a -o $tmp $u
             if (Test-Path $tmp) {
                 $got = (Get-Item $tmp).Length
                 if ($got -gt 0) {
@@ -52,7 +59,7 @@ for ($round = 1; $round -le $MaxRounds; $round++) {
             if ($have2 -gt $expect2) {
                 $fs = [System.IO.File]::Open($p2, 'Open', 'Write'); $fs.SetLength($expect2); $fs.Close()
             }
-        } -ArgumentList $Url, $auth, $from, $end, $p, $expect
+        } -ArgumentList $Url, $job_args, $from, $end, $p, $expect
     }
     if ($jobs.Count -eq 0) { break }
     Write-Host ("round {0}: {1} segment job(s) launched" -f $round, $jobs.Count)
