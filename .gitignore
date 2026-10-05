@@ -10,3 +10,5 @@ models/
 *.gguf.part*
 __pycache__/
 *.pyc
+launchers/start_*.bat
+logs/

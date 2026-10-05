@@ -1,4 +1,4 @@
-"""Local LLM stack manager: one small dashboard for every model slot.
+﻿"""Local LLM stack manager: one small dashboard for every model slot.
 
 Serves status (shim, per-slot gatekeeper/engine state with idle countdown,
 disk) and safe actions: restart a slot's gatekeeper, stop all engines,
@@ -11,6 +11,7 @@ routed through here.  Stdlib only.
 import json
 import os
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -22,10 +23,7 @@ PORT = int(CFG["manager"]["port"])
 BIND = CFG["manager"].get("bind", "0.0.0.0")
 TOKEN = CFG["manager_token"]
 SLOTS = {s["name"]: s for s in CFG["slots"]}
-_PYW = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "py.exe")  # unused placeholder
-_PY = os.environ.get("LLM_STACK_PYTHON")
-_PYW_DIR = os.path.dirname(_PY) if _PY else ""
-_PYW_EXE = "pythonw.exe"
+_PYW = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
 
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
@@ -112,8 +110,7 @@ def do_restart_slot(name):
     time.sleep(2)
     _kill_port_listeners(cfg["engine_port"])
     time.sleep(2)
-    py = _PY or "python"
-    exe = os.path.join(os.path.dirname(py), _PYW_EXE) if _PY else "pythonw"
+    exe = _PYW
     subprocess.Popen([exe, os.path.join(ROOT, "scripts", "gatekeeper.py"),
                       "--slot", name], cwd=ROOT,
                      creationflags=subprocess.CREATE_NO_WINDOW)
@@ -124,8 +121,7 @@ def do_restart_shim():
     shim_port = CFG["shim"]["port"]
     _kill_port_listeners(shim_port)
     time.sleep(2)
-    py = _PY or "python"
-    exe = os.path.join(os.path.dirname(py), _PYW_EXE) if _PY else "pythonw"
+    exe = _PYW
     subprocess.Popen([exe, os.path.join(ROOT, "scripts", "responses_shim.py")],
                      cwd=ROOT, creationflags=subprocess.CREATE_NO_WINDOW)
     return "shim restarted"
