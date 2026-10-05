@@ -6,7 +6,10 @@ REM  it treats process exit as engine-down.
 REM  Choose -c (context) with the VRAM math in docs/benchmarks.md:
 REM    weights GB + ~1.8GB runtime + ctx * KV-per-token must fit
 REM    your card.  q4_0 KV ~= 19.5KB/token, q8_0 ~= 36KB/token on
-REM    Qwen3.8-27B-class dense models; watch for the speed cliff.
+REM    Qwen3.8-27B-class dense models; and watch the WDDM spillover cliff: when weights+KV+runtime
+REM  approach VRAM capacity, Windows spills KV to shared memory and
+REM  decode halves (96K is the max full-speed slot on a 20GB card with
+REM  a 14.4GB model).  Measure, don't trust arithmetic.
 REM  (ASCII-only comments: cmd misparses UTF-8 Chinese in .bat files)
 REM ============================================================
 cd /d C:\LLM\llama
@@ -14,7 +17,7 @@ cd /d C:\LLM\llama
 llama-server.exe ^
   -m C:\LLM\models\YOUR-MODEL.gguf ^
   -ngl 99 ^
-  -c 163840 ^
+  -c 98304 ^
   -ctk q4_0 -ctv q4_0 ^
   -fa on ^
   --cache-reuse 256 ^
