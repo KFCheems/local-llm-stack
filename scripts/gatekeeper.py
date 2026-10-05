@@ -212,6 +212,26 @@ def classify(head):
     return "OTHER"
 
 
+def send_raw(client, status, body, ctype):
+    """Framed one-shot response: Content-Length + explicit shutdown/close.
+    Without Content-Length an HTTP/1.1 client waits for the connection to
+    close before it accepts the answer."""
+    payload = body if isinstance(body, bytes) else body.encode("utf-8")
+    head = (f"HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\n"
+            f"Content-Length: {len(payload)}\r\nConnection: close\r\n\r\n").encode("ascii")
+    try:
+        client.sendall(head + payload)
+    finally:
+        try:
+            client.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            pass
+        try:
+            client.close()
+        except Exception:
+            pass
+
+
 def pipe(client, name, slot, heartbeat, idle_stop, auth_token):
     global last_activity
     try:
@@ -232,10 +252,8 @@ def pipe(client, name, slot, heartbeat, idle_stop, auth_token):
                     auth = line[14:].decode("utf-8", "replace").strip()
                     break
             if auth.lower() != f"bearer {auth_token}":
-                client.sendall(b"HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\n"
-                               b"Connection: close\r\n\r\n"
-                               b'{"error": "missing/invalid bearer token"}')
-                client.close()
+                send_raw(client, "401 Unauthorized",
+                         '{"error": "missing/invalid bearer token"}', "application/json")
                 return
 
         kind = classify(bytes(head))
@@ -246,8 +264,7 @@ def pipe(client, name, slot, heartbeat, idle_stop, auth_token):
             except Exception:
                 body = json.dumps({"engine": "unknown", "idle_sec": None,
                                    "idle_stop_sec": idle_stop}).encode()
-            client.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
-                           b"Connection: close\r\n\r\n" + body)
+            send_raw(client, "200 OK", body, "application/json")
             return
 
         if kind in ("INFER", "DOC"):
@@ -258,26 +275,20 @@ def pipe(client, name, slot, heartbeat, idle_stop, auth_token):
             upstream = connect_engine(slot["engine_port"])
         else:
             if kind == "DOC":
-                try:
-                    client.sendall(PLACEHOLDER)
-                except Exception:
-                    pass
-                client.close()
+                send_raw(client, "200 OK", PLACEHOLDER.split(b"\r\n\r\n", 1)[1], "text/html; charset=utf-8")
                 start_engine(name, slot)
                 return
             if kind != "INFER":
-                client.sendall(b"HTTP/1.1 503 Service Unavailable\r\n"
-                               b"Content-Type: application/json\r\nConnection: close\r\n\r\n"
-                               b'{"error": "engine is asleep (idle stop) - send a chat message"}')
+                send_raw(client, "503 Service Unavailable",
+                         '{"error": "engine is asleep (idle stop) - send a chat message"}',
+                         "application/json")
                 return
             ok, why = start_engine(name, slot)
             if not ok:
                 msg = (f"slot '{why.split(':', 1)[1]}' holds the VRAM: wait for its idle stop, then retry."
                        if why.startswith("REFUSED:")
                        else "engine failed to start - check the gatekeeper log.")
-                client.sendall(b"HTTP/1.1 503 Service Unavailable\r\n"
-                               b"Content-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n"
-                               + msg.encode("utf-8"))
+                send_raw(client, "503 Service Unavailable", msg, "text/plain; charset=utf-8")
                 return
             upstream = connect_engine(slot["engine_port"])
 
