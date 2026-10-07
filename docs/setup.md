@@ -92,8 +92,7 @@ Base URL：`http://<本机内网IP>:8088/v1`，请求头 `Authorization: Bearer 
 
 ### 公网（Cloudflare Tunnel + Access，一条命令）
 
-前置：装好 [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
-并建一条 dashboard 托管的隧道（或 `cloudflared tunnel create`）；环境变量
+前置：装好 [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)并建一条 dashboard 托管的隧道（或 `cloudflared tunnel create`）；环境变量
 `CLOUDFLARE_TOKEN` 放一个有 Access/Tunnel/DNS 编辑权限的 API 令牌。
 
 ```powershell
@@ -108,6 +107,10 @@ API 客户端带三条头即可直调（服务令牌见 -CreateToken 的输出�
 ```
 CF-Access-Client-Id / CF-Access-Client-Secret / Authorization: Bearer <auth_token>
 ```
+
+> 个人自用可以省掉 Access 这层：在 Zero Trust 控制台删掉对应的 Access 应用后，
+> 公网只凭网关/Bearer key 鉴权（key 是高熵随机串即可接受；想恢复随时重跑本命令）。
+> 保留 Access 的好处是 key 单独泄露不会直接暴露，且自带 bot 防护。
 
 国内网络优化：连接器切 http2（QUIC 常被限速，实测首请求 25.7s → 1.4s）：
 
