@@ -47,6 +47,7 @@ scripts/install_firewall.ps1          防火墙放行 shim 端口
 scripts/make_startup_shortcuts.ps1    登录自启快捷方式
 cloudflare/provision_hostname.ps1     一条命令：域名→隧道→Access→DNS
 cloudflare/tunnel_http2.ps1           隧道连接器切 http2（国内网络提速）
+cloudflare/cf_edge_pick.ps1           大陆边缘优选（客户端 hosts 钉定，可逆）
 launchers/start_slot1.bat.example     llama-server 启动模板（含显存算账注释）
 clients/*.example                     pi / dsh / cc-switch 客户端配置模板
 docs/setup.md            从零部署完整流程

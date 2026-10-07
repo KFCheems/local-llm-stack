@@ -111,6 +111,39 @@ powershell -File cloudflare\tunnel_http2.ps1
 
 面板同理发布：`-Hostname "pc.your-domain.com" -Port 9090 -AppPrefix "Panel"`。
 
+### 中国大陆延迟优化（实测 2026-10-07）
+
+CF 免费版在大陆没有本陆节点，默认 DNS 常落到远端边缘（电信家宽实测落到
+0.4s 握手的 PoP）。实测对比：
+
+| 路径 | TLS 握手 | 单请求 TTFB |
+|---|---|---|
+| 默认 DNS 边缘（104.19.0.1） | 0.40-0.55s | 0.86-2.44s（抖动大） |
+| 优选边缘（108.162.192.1） | **0.16s** | **~0.95s（稳定）** |
+| 引擎就绪后的纯隧道开销 | - | ~0.9s/请求（结构性下限） |
+
+三层手段，按代价从小到大：
+
+1. **客户端 Clash 加直连规则**：如果代理了这个域名，流量会先出境绕代理节点
+   再回大陆 origin（跨太平洋两趟）。规则：`DOMAIN,api.qqking.top,DIRECT`
+2. **边缘优选**（纯客户端、可逆、不动 Access 鉴权）：
+
+   ```powershell
+   powershell -File cloudflare\cf_edge_pick.ps1            # 探测 24 个边缘并写 hosts（管理员）
+   powershell -File cloudflare\cf_edge_pick.ps1 -DryRun    # 只测不写
+   powershell -File cloudflare\cf_edge_pick.ps1 -Restore   # 撤销 hosts 钉定
+   ```
+
+   SNI 路由使任播任意边缘都能服务本域名，实测握手 391ms→144ms。
+   每台客户端各自跑一次即可。
+3. **自有 PC 走 Tailscale 组网（推荐，近乎局域网）**：两端 `tailscale up` 后，
+   客户端 Base URL 改 `http://<LLM机的Tailscale IP>:8088/v1`（Bearer 照带）。
+   P2P 打洞成功时延迟 ≈ 物理 RTT；失败走 DERP 中继。CF 隧道保留给手机/他人。
+   有国内 VPS 的话 frp/WireGuard 中转是最优解（10-40ms）。
+
+> 排障记录：ingress 是 token 托管模式时规则在 CF 云端不在本地；若公网 401
+> 带 "Invalid or missing API key" 而本机 8088 正常，先查隧道路由是否指错端口。
+
 ## 5. 接入 AI 编码代理（"脑子 + 手"）
 
 **dsh（DeepSeek Harness）**：主模型保持云端旗舰，把 `subagent` 工具委派强制指向
