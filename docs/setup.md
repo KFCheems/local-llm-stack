@@ -73,6 +73,12 @@ powershell -File scripts\make_startup_shortcuts.ps1 `
 
 ## 4. 客户端接入
 
+> **统一网关（可选）**：也可以在栈前面套一层本机统一网关（如 Magpie :3425，
+> 自带 key 管理与多提供商路由）。此时客户端只记一个入口，模型 id 变为
+> `qqking/<model>`，公网 ingress 指向统一网关，鉴权 = Access 服务令牌 +
+> 网关 key 双层；本机回环调用统一网关通常免 key。栈自身（shim :8088）仍是
+> 引擎侧的唯一直连入口，两种用法可并存。
+
 ### 本机（pi / dsh / 任意 OpenAI 客户端）
 
 Base URL：`http://127.0.0.1:8088/v1`（Responses 协议）。
