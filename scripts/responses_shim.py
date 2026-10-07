@@ -388,15 +388,17 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
 
         seq = [0]
+        wlock = threading.Lock()   # keepalive thread and delta writes share the socket
 
         def send(etype, data):
             data["type"] = etype
             seq[0] += 1
             data["sequence_number"] = seq[0]
             payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
-            self.wfile.write(b"event: " + etype.encode("utf-8")
-                             + b"\ndata: " + payload + b"\n\n")
-            self.wfile.flush()
+            with wlock:
+                self.wfile.write(b"event: " + etype.encode("utf-8")
+                                 + b"\ndata: " + payload + b"\n\n")
+                self.wfile.flush()
 
         skeleton = response_skeleton(rid, model, "in_progress")
         send("response.created", {"response": skeleton})
@@ -407,8 +409,9 @@ class Handler(BaseHTTPRequestHandler):
         def keepalive():
             while not upstream_ready.wait(15.0):
                 try:
-                    self.wfile.write(b": keepalive\n\n")
-                    self.wfile.flush()
+                    with wlock:
+                        self.wfile.write(b": keepalive\n\n")
+                        self.wfile.flush()
                 except Exception:
                     return
 

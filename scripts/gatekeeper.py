@@ -7,8 +7,10 @@ then splices raw bytes (SSE-safe).  After IDLE_STOP seconds with no real
 activity it kills the engine process, freeing VRAM for the next slot.
 
 Exclusivity: full-power slots cannot share a consumer GPU.  When a slot's
-start is requested while an `exclusive_with` slot's engine is healthy, the
-start is refused with a 503 that names the blocker.
+start is requested while an `exclusive_with` slot's engine is up, the
+blocker is evicted (killed) if its own gatekeeper heartbeat shows it has
+been idle for at least `exclusive_idle_kill_sec` (default 60s); otherwise
+the start is refused with a 503 that names the blocker.
 
 Auth: requests from 127.0.0.1 are trusted (the Cloudflare tunnel connector
 runs locally and its own Access layer is the gate there).  Requests from any
@@ -33,8 +35,10 @@ START_TIMEOUT_SEC = 300
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 lock = threading.Lock()
+start_condition = threading.Condition(lock)
 last_activity = time.time()
 starting = False
+startup_result = (False, "NOT_STARTED")
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 CFG = {}
@@ -86,6 +90,30 @@ def exclusive_engine_up(slot):
     return None, None
 
 
+def port_open(port, timeout=0.5):
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def blocker_idle_sec(blocker):
+    """Idle seconds reported by another slot's gatekeeper heartbeat, or None
+    when the heartbeat is stale/absent or its engine is not up."""
+    path = os.path.join(ROOT, "logs", f"gatekeeper_{blocker}.json")
+    try:
+        if time.time() - os.stat(path).st_mtime > 30:
+            return None
+        with open(path) as f:
+            hb = json.load(f)
+        if hb.get("engine") != "up":
+            return None
+        return int(hb.get("idle_sec") or 0)
+    except Exception:
+        return None
+
+
 def stop_engine(name, port):
     log(name, "idle - stopping the engine (frees VRAM)")
     p = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True,
@@ -105,16 +133,38 @@ def stop_engine(name, port):
 
 
 def start_engine(name, slot):
-    global starting
-    with lock:
+    global starting, startup_result
+    with start_condition:
         if starting:
-            return True, "starting"
+            # Concurrent requests must wait for the owner's readiness check.
+            # A listening llama-server can still return 503 while loading.
+            deadline = time.monotonic() + START_TIMEOUT_SEC
+            while starting:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False, "TIMEOUT"
+                start_condition.wait(timeout=remaining)
+            return startup_result
         starting = True
+    result = (False, "TIMEOUT")
     try:
         blocker, bport = exclusive_engine_up(slot)
         if blocker:
-            log(name, f"start refused: slot '{blocker}' (port {bport}) holds the VRAM")
-            return False, f"REFUSED:{blocker}"
+            idle = blocker_idle_sec(blocker)
+            kill_after = int(CFG.get("exclusive_idle_kill_sec", 60))
+            if idle is not None and idle >= kill_after:
+                log(name, f"exclusive slot '{blocker}' idle {idle}s >= {kill_after}s - evicting it")
+                stop_engine(blocker, bport)
+                deadline = time.time() + 15
+                while port_open(bport) and time.time() < deadline:
+                    time.sleep(0.5)
+                if port_open(bport):
+                    log(name, "blocker engine port still open; VRAM may not be freed yet")
+            else:
+                state = "unknown" if idle is None else f"idle {idle}s < {kill_after}s"
+                log(name, f"start refused: slot '{blocker}' (port {bport}) holds the VRAM ({state})")
+                result = (False, f"REFUSED:{blocker}")
+                return result
         log(name, "engine down - starting ...")
         subprocess.Popen([slot["start_bat"]], cwd=ROOT,
                          creationflags=subprocess.CREATE_NO_WINDOW)
@@ -122,13 +172,22 @@ def start_engine(name, slot):
         while time.time() < deadline:
             if engine_up(port=slot["engine_port"]):
                 log(name, "engine ready")
-                return True, "running"
-            time.sleep(2)
+                result = (True, "running")
+                return result
+            # llama-server answers 503 while the model loads, so poll tightly:
+            # every extra second here is dead latency on the cold request.
+            time.sleep(0.25)
         log(name, "engine did not become ready in time")
-        return False, "TIMEOUT"
+        return result
+    except Exception as e:
+        log(name, f"engine launch failed: {type(e).__name__}: {e}")
+        result = (False, "START_FAILED")
+        return result
     finally:
-        with lock:
+        with start_condition:
+            startup_result = result
             starting = False
+            start_condition.notify_all()
 
 
 def idle_watchdog(name, slot, heartbeat, idle_stop):

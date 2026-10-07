@@ -23,8 +23,11 @@
 
 核心设计：
 
-- **按需启动 + 闲置 300 秒自动停止** —— 模型不常驻，不费电，显存随用随还
-- **槽位互斥** —— 20GB 显卡同一时刻全力只跑一个模型，其它槽的请求会被明确拒绝并提示
+- **按需启动 + 闲置自动停止** —— 模型不常驻，不费电，显存随用随还
+  （每槽 `idle_stop_sec` 可调）
+- **槽位互斥 + 闲置让位** —— 20GB 显卡同一时刻全力只跑一个模型；其它槽来请求时，
+  对方闲置超过 `exclusive_idle_kill_sec`（默认 60s）就自动让位切换，
+  在忙则明确拒绝并提示
 - **Responses 协议适配器** —— 把 Chat Completions 引擎翻译成 OpenAI Responses API
   （工具调用、思考内容、SSE 流式 + 冷启动心跳，支持 pi 等 Responses 客户端）
 - **双层安全** —— 公网走 Cloudflare Access（邮箱 OTP + 服务令牌），局域网走 Bearer；
@@ -90,6 +93,8 @@ curl http://127.0.0.1:8088/v1/responses `
 | `slots[].gate_port / engine_port` | 门卫端口 / llama-server 端口 |
 | `slots[].start_bat` | 该槽的 llama-server 启动脚本（模型、上下文、量化全在这） |
 | `slots[].exclusive_with` | 与哪些槽互斥（显存装不下两个就互相登记） |
+| `slots[].idle_stop_sec` | 该槽引擎闲置多少秒自动停止（默认 300） |
+| `exclusive_idle_kill_sec` | 互斥让位阈值：对方槽闲置超过该秒数则驱逐而非拒绝（默认 60） |
 | `upstreams.models` | 模型 ID → 槽位 的路由表（`/v1/models` 列表也来自这里） |
 | `upstreams.default_model` | 未知模型 ID 的兜底路由 |
 

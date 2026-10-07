@@ -55,8 +55,10 @@ Start-Process python -ArgumentList "scripts\manager.py"             -WindowStyle
 
 - 客户端第一条请求会自动拉起对应槽的引擎（冷启动 = WSL/页缓存冷时 1-4 分钟，
   热时 10-25 秒），期间流式请求会收到 SSE 心跳保活
-- 闲置 300 秒自动杀引擎释放显存
-- 互斥：槽 A 在跑时，槽 B 的启动请求被拒绝（503 指名道姓），等 A 自停即可
+- 闲置自动杀引擎释放显存（每槽 `idle_stop_sec`，默认 300 秒）
+- 互斥：槽 A 在跑时，槽 B 的启动请求先看 A 的心跳——A 闲置超过
+  `exclusive_idle_kill_sec`（默认 60 秒）会自动驱逐 A 并启动 B（切换 ≈ 一次冷启动）；
+  A 在忙则拒绝（503 指名道姓），稍后重试即可
 - 状态随时查：`http://127.0.0.1:8090/gatekeeper/status`（每个槽）或面板
 - 日志：`logs/` 目录
 
@@ -137,7 +139,7 @@ powershell -File cloudflare\tunnel_http2.ps1
 
 | 症状 | 检查 |
 |---|---|
-| 请求 502 "启动超时" | `logs/gatekeeper_*.log`；若报"另一槽占卡"= 互斥，等自停 |
+| 请求 502 "启动超时" | `logs/gatekeeper_*.log`；若报"另一槽占卡"= 对方还在忙（闲置<60s），稍等重试；对方闲置超阈值会自动让位 |
 | 模型永不停机 | netstat 输出编码（GBK）解析失败 —— 本仓库已修，别用 text=True |
 | 冷启动时请求报错 | 引擎在装，等 30 秒重发即可（已唤醒） |
 | 公网首请求 20 秒+ | 连接器还在 QUIC，切 http2 |

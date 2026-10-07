@@ -1,7 +1,8 @@
 {
-  "_comment": "Copy to config/stack.json and edit. One file drives the shim, the gatekeepers and the manager.",
+  "_comment": "Copy to config/stack.json and edit. One file drives the shim, the gatekeepers and the manager. exclusive_idle_kill_sec: evict an idle exclusive slot's engine instead of refusing (heartbeat must show idle >= N seconds). idle_stop_sec (per slot): auto-stop an idle engine.",
   "auth_token": "change-me-bearer-token",
   "manager_token": "change-me-panel-token",
+  "exclusive_idle_kill_sec": 60,
   "shim": {
     "port": 8088,
     "bind": "0.0.0.0"
@@ -23,6 +24,7 @@
       "gate_port": 8090,
       "engine_port": 8091,
       "start_bat": "launchers/start_slot1.bat",
+      "idle_stop_sec": 300,
       "exclusive_with": ["slot2"]
     },
     {
@@ -30,6 +32,7 @@
       "gate_port": 8092,
       "engine_port": 8093,
       "start_bat": "launchers/start_slot2.bat",
+      "idle_stop_sec": 900,
       "exclusive_with": ["slot1"]
     }
   ]
